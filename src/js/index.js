@@ -1,6 +1,8 @@
 import { Notify } from 'notiflix/build/notiflix-notify-aio';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
+import axios from 'axios';
+import { insertContent } from './create-markup';
 
 const form = document.querySelector('.search-form');
 const galleryRef = document.querySelector('.gallery');
@@ -13,39 +15,6 @@ const PARAMS = `&image_type=photo&orientation=horizontal&safesearch=true`;
 let userSearchData = '';
 let currentPage = 1;
 let perPage = 40;
-
-const createMarkUp = hit => {
-  return `<a class="gallery__item" href="${hit.largeImageURL}">
-            <img src="${hit.webformatURL}" alt="${hit.tags}" loading="lazy" class="gallery__image/>
-            <div class="info">
-              <p class="info-item">
-                <b>Likes ${hit.likes}</b>
-              </p>
-              <p class="info-item">
-                <b>Views ${hit.views}</b>
-              </p>
-              <p class="info-item">
-                <b>Comments ${hit.comments}</b>
-              </p>
-              <p class="info-item">
-                <b>Downloads ${hit.downloads}</b>
-              </p>
-              </div>       
-          </a>`;
-};
-
-const generateMarkUp = array =>
-  array?.reduce((acc, hit) => acc + createMarkUp(hit), '');
-
-const insertContent = array => {
-  const result = generateMarkUp(array);
-  galleryRef.insertAdjacentHTML('beforeend', result);
-  let lightbox = new SimpleLightbox('.gallery a', {
-    captionsData: 'alt',
-    captionDelay: 250,
-  });
-  lightbox.refresh();
-};
 
 const notifyUser = data => {
   if (data.totalHits) {
@@ -77,30 +46,29 @@ const handlePagination = data => {
 
 const clearPreviousSearch = () => {
   if (userSearchData !== '' && userSearchData !== searchQuery.value) {
+    loadMore.classList.add('visually-hidden');
     galleryRef.innerHTML = '';
     currentPage = 1;
   }
 };
 
-const handleSubmit = event => {
+const handleSubmit = async event => {
   event.preventDefault();
   clearPreviousSearch();
-  const url = createUrl();
+  try {
+    const url = await createUrl();
+    const response = await axios.get(url);
+    const { data } = response;
 
-  fetch(url)
-    .then(response => response.json())
-    .then(data => {
-      if (event.type === 'submit') {
-        notifyUser(data);
-      }
-      console.log(createMarkUp(data));
-      insertContent(data.hits);
+    if (event.type === 'submit') {
+      notifyUser(data);
+    }
 
-      handlePagination(data);
-    })
-    .catch(error => {
-      console.log('error', error);
-    });
+    insertContent(data.hits);
+    handlePagination(data);
+  } catch (error) {
+    console.log(error);
+  }
 };
 
 form.addEventListener('submit', handleSubmit);
